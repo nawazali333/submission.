@@ -1,0 +1,173 @@
+#Question 1 : Distance Matrix Calculation
+
+
+import pandas as pd
+
+def calculate_distance_matrix(data):
+    # Get unique IDs from the 'id_start' and 'id_end' columns
+    unique_ids = sorted(set(data['id_start'].unique()) | set(data['id_end'].unique()))
+
+    # Create an empty symmetric matrix with IDs as both index and columns
+    distance_matrix = pd.DataFrame(0, index=unique_ids, columns=unique_ids)
+
+    # Update the matrix with cumulative distances along known routes
+    for row in data.itertuples():
+        id_start, id_end, distance = row.id_start, row.id_end, row.distance
+        distance_matrix.at[id_start, id_end] += distance
+        distance_matrix.at[id_end, id_start] += distance  # Bidirectional
+
+    # Calculate cumulative distances
+    for k in unique_ids:
+        for i in unique_ids:
+            for j in unique_ids:
+                distance_matrix.at[i, j] = min(distance_matrix.at[i, j], distance_matrix.at[i, k] + distance_matrix.at[k, j])
+
+    return distance_matrix
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-3.csv')
+result_distance_matrix = calculate_distance_matrix(df)
+print(result_distance_matrix)
+
+
+
+
+
+
+
+
+#Question 2 : Unroll Distance Matrix
+
+
+import pandas as pd
+
+def unroll_distance_matrix(distance_matrix):
+    # Assuming 'distance_matrix' is the DataFrame generated in Question 1
+    # If not, you can obtain it using: distance_matrix = calculate_distance_matrix(data)
+
+    # Extract unique IDs from the columns of the distance matrix
+    unique_ids = distance_matrix.columns
+
+    # Initialize lists to store unrolled data
+    id_start_list = []
+    id_end_list = []
+    distance_list = []
+
+    # Iterate over unique ID combinations and populate the lists
+    for id_start in unique_ids:
+        for id_end in unique_ids:
+            if id_start != id_end:
+                distance = distance_matrix.loc[id_start, id_end]
+                id_start_list.append(id_start)
+                id_end_list.append(id_end)
+                distance_list.append(distance)
+
+    # Create a DataFrame from the unrolled data
+    unrolled_df = pd.DataFrame({'id_start': id_start_list, 'id_end': id_end_list, 'distance': distance_list})
+
+    return unrolled_df
+
+
+result_unrolled_distance = unroll_distance_matrix(result_distance_matrix)
+print(result_unrolled_distance)
+
+
+
+
+# #Question 3 : Finding IDs within Percentage Threshold
+
+
+import pandas as pd
+
+def find_ids_within_ten_percentage_threshold(distance_df, reference_value):
+    # Assuming 'distance_df' is the DataFrame generated in Question 2
+    # If not, you can obtain it using: distance_df = unroll_distance_matrix(distance_matrix)
+
+    # Filter rows with the given reference value as 'id_start'
+    reference_rows = distance_df[distance_df['id_start'] == reference_value]
+
+    # Calculate the average distance for the reference value
+    reference_average_distance = reference_rows['distance'].mean()
+
+    # Calculate the threshold values
+    lower_threshold = reference_average_distance - 0.1 * reference_average_distance
+    upper_threshold = reference_average_distance + 0.1 * reference_average_distance
+
+    # Filter 'id_start' values within the 10% threshold
+    within_threshold_ids = distance_df[
+        (distance_df['distance'] >= lower_threshold) &
+        (distance_df['distance'] <= upper_threshold)
+    ]['id_start'].unique()
+
+    # Sort the list of 'id_start' values
+    within_threshold_ids = sorted(within_threshold_ids)
+
+    return within_threshold_ids
+
+
+result_within_threshold_ids = find_ids_within_ten_percentage_threshold(result_unrolled_distance, reference_value=1001400)
+print(result_within_threshold_ids)
+
+
+
+
+#Question 4 : Calculate Toll Rate
+
+
+import pandas as pd
+
+def calculate_toll_rate(unrolled_distance_df):
+    # Assuming 'unrolled_distance_df' is the DataFrame generated in Question 2
+    # If not, you can obtain it using: unrolled_distance_df = unroll_distance_matrix(distance_matrix)
+
+    # Define rate coefficients for each vehicle type
+    rate_coefficients = {'moto': 0.8, 'car': 1.2, 'rv': 1.5, 'bus': 2.2, 'truck': 3.6}
+
+    # Create columns for each vehicle type with their respective rate coefficients
+    for vehicle_type, rate_coefficient in rate_coefficients.items():
+        unrolled_distance_df[vehicle_type] = unrolled_distance_df['distance'] * rate_coefficient
+
+    return unrolled_distance_df
+
+
+result_toll_rates = calculate_toll_rate(result_unrolled_distance)
+print(result_toll_rates)
+
+
+
+
+
+#Question 5 : Calculate Time-Based Toll Rates
+
+
+import pandas as pd
+import datetime
+
+def calculate_time_based_toll_rates(toll_rate_df):
+    # Assuming 'toll_rate_df' is the DataFrame generated in Question 4
+    # If not, you can obtain it using: toll_rate_df = calculate_toll_rate(unrolled_distance_df)
+
+    # Define time ranges and corresponding discount factors
+    time_ranges = [
+        {'start': datetime.time(0, 0, 0), 'end': datetime.time(10, 0, 0), 'factor': 0.8},
+        {'start': datetime.time(10, 0, 0), 'end': datetime.time(18, 0, 0), 'factor': 1.2},
+        {'start': datetime.time(18, 0, 0), 'end': datetime.time(23, 59, 59), 'factor': 0.8}
+    ]
+
+    toll_rate_df['start_day'] = pd.to_datetime(toll_rate_df['id_start']).dt.strftime('%A')
+    toll_rate_df['end_day'] = pd.to_datetime(toll_rate_df['id_end']).dt.strftime('%A')
+    
+    # Create columns for start_time and end_time
+    toll_rate_df['start_time'] = pd.to_datetime(toll_rate_df['id_start']).dt.time
+    toll_rate_df['end_time'] = pd.to_datetime(toll_rate_df['id_end']).dt.time
+
+    # Modify values of vehicle columns based on time ranges and discount factors
+    for time_range in time_ranges:
+        condition = (toll_rate_df['start_time'] <= time_range['start']) & (toll_rate_df['end_time'] >= time_range['end'])
+        toll_rate_df.loc[condition, toll_rate_df.columns[5:]] *= time_range['factor']
+
+    return toll_rate_df
+
+# Example usage:
+result_time_based_toll_rates = calculate_time_based_toll_rates(result_toll_rates)
+print(result_time_based_toll_rates)

@@ -1,0 +1,167 @@
+#Question 1 : Car Matrix Generation
+
+import pandas as pd
+
+def generate_car_matrix(data):
+    
+    # Create a pivot table with 'id_1' as index, 'id_2' as columns, and 'car' as values
+    car_matrix = pd.pivot_table(data, values='car', index='id_1', columns='id_2', fill_value=0)
+
+    # Set diagonal values to 0
+    for i in range(min(car_matrix.shape)):
+        car_matrix.iloc[i, i] = 0
+
+    return car_matrix
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-1.csv')
+result_matrix = generate_car_matrix(df)
+print(result_matrix)
+
+#Question 2 : Car Type Count Calculation
+
+
+import pandas as pd
+
+def get_type_count(data):
+    
+    # Add a new column 'car_type' based on conditions
+    data['car_type'] = pd.cut(data['car'], bins=[-float('inf'), 15, 25, float('inf')], labels=['low', 'medium', 'high'])
+
+    # Calculate the count of occurrences for each car_type category
+    type_count = data['car_type'].value_counts().to_dict()
+
+    # Sort the dictionary alphabetically based on keys
+    sorted_type_count = dict(sorted(type_count.items()))
+
+    return sorted_type_count
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-1.csv')
+result_type_count = get_type_count(df)
+print(result_type_count)
+
+
+
+#Question 3 : Bus Count Index Retrieval
+
+
+import pandas as pd
+
+def get_bus_indexes(data):
+    
+    # Calculate the mean value of the 'bus' column
+    bus_mean = data['bus'].mean()
+
+    # Identify indices where 'bus' values are greater than twice the mean
+    bus_indexes = data[data['bus'] > 2 * bus_mean].index.tolist()
+
+    # Sort the indices in ascending order
+    bus_indexes.sort()
+
+    return bus_indexes
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-1.csv')
+result_bus_indexes = get_bus_indexes(df)
+print(result_bus_indexes)
+
+
+
+
+#Question 4 :Route Filtering
+
+
+import pandas as pd
+
+def filter_routes(data):
+    
+    # Calculate the average of values in the 'truck' column for each route
+    route_avg_truck = data.groupby('route')['truck'].mean()
+
+    # Filter routes where the average of 'truck' values is greater than 7
+    selected_routes = route_avg_truck[route_avg_truck > 7].index.tolist()
+
+    # Sort the list of selected routes
+    selected_routes.sort()
+
+    return selected_routes
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-1.csv')
+result_routes = filter_routes(df)
+print(result_routes)
+
+
+
+#Qestion 5 : Matrix Value Modification
+
+
+import pandas as pd
+
+def multiply_matrix(car_matrix):
+    
+    # Apply the specified logic to modify the values
+    modified_matrix = car_matrix.applymap(lambda x: x * 0.75 if x > 20 else x * 1.25)
+
+    # Round the values to 1 decimal place
+    modified_matrix = modified_matrix.round(1)
+
+    return modified_matrix
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-1.csv')
+car_matrix = generate_car_matrix(df)
+result_modified_matrix = multiply_matrix(car_matrix)
+print(result_modified_matrix)
+
+
+
+#Qestion 6 : Calculate Time-Based Toll Rates
+
+
+import pandas as pd
+from datetime import datetime, timedelta
+
+def check_time_completeness(data):
+    try:
+        # Convert timestamp columns to datetime objects
+        data['start_datetime'] = pd.to_datetime(data['startDay'] + ' ' + data['startTime'])
+        data['end_datetime'] = pd.to_datetime(data['endDay'] + ' ' + data['endTime'])
+    except pd.errors.OutOfBoundsDatetime as e:
+        print(f"Error: {e}")
+        print("Problematic row:")
+        print(data.iloc[0])  # Print the first problematic row causing the error
+        return None  # Handle the error appropriately
+
+    # Create a datetime range for a full 24-hour period
+    full_24_hours = pd.date_range("00:00:00", "23:59:59", freq="1S")
+
+    # Create a dataframe with all combinations of (id, id_2) and full_24_hours
+    all_combinations = pd.MultiIndex.from_product([data['id'].unique(), data['id_2'].unique()], names=['id', 'id_2'])
+    all_times = pd.DataFrame(index=full_24_hours, columns=all_combinations)
+
+    # Fill the dataframe with True for valid times
+    for _, row in data.iterrows():
+        try:
+            time_range = pd.date_range(row['start_datetime'], row['end_datetime'], freq="1S")
+        except pd.errors.OutOfBoundsDatetime as e:
+            print(f"Error: {e}")
+            print("Problematic row:")
+            print(row)  # Print the problematic row causing the error
+            continue  # Skip this row if there's an error
+
+        all_times.loc[time_range, (row['id'], row['id_2'])] = True
+
+    # Fill NaN with False
+    all_times = all_times.fillna(False)
+
+    # Check completeness for each (id, id_2) pair
+    completeness_check = all_times.groupby(level=['id', 'id_2']).all()
+
+    return completeness_check
+
+
+df = pd.read_csv(r'C:\Users\nawaz\Downloads\templetes\Datasets\dataset-2.csv')
+result_completeness = check_time_completeness(df)
+print(result_completeness)
